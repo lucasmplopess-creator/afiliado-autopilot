@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Afiliado Autopilot</title>
+<style>
+  :root { --bg:#0f0f12; --card:#18181d; --line:#26262d; --tx:#f2f2f4; --mut:#8b8b96; --pri:#ee4d2d; --ok:#22c55e; --warn:#f59e0b; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--tx); font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif; }
+  header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; border-bottom:1px solid var(--line); position:sticky; top:0; background:var(--bg); z-index:5; }
+  header h1 { font-size:16px; letter-spacing:.3px; } header h1 b { color:var(--pri); }
+  nav { display:flex; gap:4px; overflow-x:auto; padding:10px 14px; border-bottom:1px solid var(--line); }
+  nav button { background:none; border:0; color:var(--mut); padding:8px 12px; border-radius:8px; cursor:pointer; white-space:nowrap; font-weight:600; }
+  nav button.on { background:var(--pri); color:#fff; }
+  main { max-width:1100px; margin:0 auto; padding:18px 14px 60px; }
+  section { display:none; } section.on { display:block; }
+  .grid { display:grid; gap:12px; grid-template-columns:repeat(auto-fill,minmax(220px,1fr)); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px; }
+  .stat b { font-size:26px; display:block; } .stat span { color:var(--mut); font-size:12px; text-transform:uppercase; letter-spacing:.5px; }
+  .btn { background:var(--pri); color:#fff; border:0; border-radius:10px; padding:9px 14px; font-weight:700; cursor:pointer; }
+  .btn.sec { background:#2a2a32; } .btn.sm { padding:6px 10px; font-size:12px; }
+  input, select, textarea { width:100%; background:#101014; border:1px solid var(--line); color:var(--tx); border-radius:9px; padding:9px 10px; font:inherit; }
+  label { display:block; color:var(--mut); font-size:12px; margin:10px 0 4px; }
+  .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+  .prod img { width:100%; aspect-ratio:1; object-fit:cover; border-radius:10px; background:#222; }
+  .prod h4 { font-size:13px; margin:8px 0 4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .tag { display:inline-block; font-size:11px; padding:2px 7px; border-radius:20px; background:#26262d; color:var(--mut); margin:2px 4px 2px 0; }
+  .tag.g { background:#14361f; color:var(--ok); } .tag.o { background:#3a1a12; color:#ff8a6b; }
+  .price { font-weight:800; font-size:16px; } .price s { color:var(--mut); font-weight:400; font-size:12px; margin-left:4px; }
+  .days button { width:42px; height:34px; border-radius:20px; border:1px solid var(--line); background:#101014; color:var(--mut); font-weight:700; cursor:pointer; }
+  .days button.on { background:var(--pri); color:#fff; border-color:var(--pri); }
+  table { width:100%; border-collapse:collapse; font-size:13px; } td, th { padding:8px 6px; border-bottom:1px solid var(--line); text-align:left; } th { color:var(--mut); font-weight:600; }
+  .pill { padding:2px 8px; border-radius:20px; font-size:11px; font-weight:700; }
+  .pill.enviado { background:#14361f; color:var(--ok); } .pill.simulado { background:#3a2e0e; color:var(--warn); } .pill.erro { background:#3a1212; color:#f87171; }
+  .switch { display:flex; align-items:center; gap:8px; cursor:pointer; font-weight:700; }
+  .dot { width:10px; height:10px; border-radius:50%; background:#555; } .dot.on { background:var(--ok); box-shadow:0 0 10px var(--ok); }
+  .alert { background:#2b2410; border:1px solid #5a4815; color:#f5d77a; border-radius:12px; padding:10px 12px; margin-bottom:14px; font-size:13px; }
+  pre.copy { white-space:pre-wrap; background:#101014; border-radius:10px; padding:10px; font-family:inherit; font-size:12px; line-height:1.5; margin-top:8px; max-height:180px; overflow:auto; }
+  h2 { font-size:15px; margin:4px 0 12px; } .mut { color:var(--mut); font-size:12px; }
+  #toast { position:fixed; bottom:18px; left:50%; transform:translateX(-50%); background:#fff; color:#111; padding:10px 16px; border-radius:10px; font-weight:700; display:none; z-index:9; }
+</style>
+</head>
+<body>
+<header>
+  <h1><b>●</b> Afiliado Autopilot</h1>
+  <div class="switch" id="sw"><span class="dot" id="dot"></span><span id="swtxt">Pausado</span></div>
+</header>
+<nav id="nav">
+  <button data-t="painel" class="on">Painel</button>
+  <button data-t="produtos">Produtos</button>
+  <button data-t="fila">Fila</button>
+  <button data-t="ritmo">Ritmo dos disparos</button>
+  <button data-t="canais">Canais</button>
+  <button data-t="nichos">Nichos e filtros</button>
+  <button data-t="historico">Histórico</button>
+</nav>
+<main>
+  <div id="avisos"></div>
+
+  <section id="painel" class="on">
+    <div class="grid" id="stats" style="grid-template-columns:repeat(auto-fill,minmax(140px,1fr))"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn" onclick="acao('/api/autopilot','Buscando ofertas...')">Abastecer fila agora</button>
+      <button class="btn sec" onclick="acao('/api/disparar','Disparando...')">Disparar agora</button>
+    </div>
+    <p class="mut" style="margin-top:12px" id="resumo"></p>
+  </section>
+
+  <section id="produtos">
+    <div class="row">
+      <input id="q" placeholder="Buscar ofertas da Shopee (ex: mouse gamer)" style="flex:1;min-width:200px" />
+      <select id="ord" style="width:auto">
+        <option value="indice">Maior índice</option><option value="comissao">Maior comissão</option>
+        <option value="vendidos">Mais vendidos</option><option value="precoMenor">Menor preço</option>
+      </select>
+      <button class="btn" onclick="buscar()">Buscar</button>
+    </div>
+    <div class="grid" id="ofertas" style="margin-top:14px"></div>
+  </section>
+
+  <section id="fila"><h2>Próximos disparos</h2><div class="grid" id="listaFila"></div></section>
+
+  <section id="ritmo">
+    <div class="card" style="max-width:520px">
+      <h2>Ritmo dos disparos</h2>
+      <label>Produtos por disparo</label><input type="number" id="r_prod" min="1" />
+      <label>Grupos por disparo (0 = todos, com rodízio)</label><input type="number" id="r_grp" min="0" />
+      <label>Teto de mensagens por dia</label><input type="number" id="r_teto" min="1" />
+      <label>Intervalo entre disparos (min)</label><input type="number" id="r_int" min="5" />
+      <label>Dias da semana</label><div class="row days" id="r_dias"></div>
+      <label>Janela de horário</label>
+      <div class="row"><input type="time" id="r_ini" style="width:130px" /> até <input type="time" id="r_fim" style="width:130px" /></div>
+      <p class="mut" style="margin-top:10px">O teto diário sempre vence. Cada disparo envia produtos × grupos mensagens.</p>
+      <button class="btn" style="margin-top:12px" onclick="salvarRitmo()">Salvar ritmo</button>
+    </div>
+  </section>
+
+  <section id="canais">
+    <div class="card" style="max-width:620px;margin-bottom:14px">
+      <h2>WhatsApp do robô</h2>
+      <p id="wStatus" class="mut">Verificando conexão...</p>
+      <div id="wConectar" style="display:none">
+        <label>Número do WhatsApp do robô (com DDD, ex: 5519999999999)</label>
+        <input id="wNum" inputmode="numeric" placeholder="55 19 99999 9999" />
+        <button class="btn" style="margin-top:10px" onclick="conectarWhats()">Gerar código de conexão</button>
+        <div id="wCodigo" style="margin-top:12px"></div>
+      </div>
+      <div id="wGruposBox" style="display:none">
+        <button class="btn sec" style="margin-top:6px" onclick="carregarGrupos()">Buscar meus grupos</button>
+        <div id="wGrupos" style="margin-top:10px"></div>
+      </div>
+    </div>
+    <div class="card" style="max-width:620px">
+      <h2>Canais de envio</h2>
+      <div id="listaCanais"></div>
+      <label>Tipo</label><select id="c_tipo"><option value="whatsapp">Grupo de WhatsApp</option><option value="telegram">Canal/Grupo do Telegram</option></select>
+      <label>Nome</label><input id="c_nome" placeholder="Ex: Ofertas Gamer #1" />
+      <label>Destino (WhatsApp: 1203...@g.us | Telegram: @canal ou -100...)</label><input id="c_dest" />
+      <button class="btn" style="margin-top:12px" onclick="addCanal()">Adicionar canal</button>
+    </div>
+  </section>
+
+  <section id="nichos">
+    <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(300px,1fr))">
+      <div class="card"><h2>Nichos (piloto automático)</h2><div id="listaNichos"></div>
+        <label>Novo nicho</label><input id="n_nome" placeholder="Nome do nicho" />
+        <label>Palavras de busca (separe por vírgula)</label><input id="n_pal" placeholder="air fryer, panela eletrica" />
+        <button class="btn sm" style="margin-top:10px" onclick="addNicho()">Adicionar nicho</button>
+      </div>
+      <div class="card"><h2>Filtros de qualidade</h2>
+        <label>Desconto mínimo (%)</label><input type="number" id="f_desc" />
+        <label>Nota mínima</label><input type="number" step="0.1" id="f_nota" />
+        <label>Vendas mínimas</label><input type="number" id="f_vend" />
+        <label>Comissão mínima (%)</label><input type="number" step="0.5" id="f_com" />
+        <label>Preço máximo (R$)</label><input type="number" id="f_preco" />
+        <label>Manter na fila no mínimo</label><input type="number" id="a_min" />
+        <label>Não repetir produto por (dias)</label><input type="number" id="a_rep" />
+        <button class="btn" style="margin-top:12px" onclick="salvarFiltros()">Salvar filtros</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="historico"><div class="card" style="overflow-x:auto"><table><thead><tr><th>Data</th><th>Produto</th><th>Canal</th><th>Status</th></tr></thead><tbody id="tbHist"></tbody></table></div></section>
+</main>
+<div id="toast"></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const brl = (v) => (v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+let E = null, ofertas = [];
+
+const api = async (url, opt = {}) => {
+  const r = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opt, body: opt.body ? JSON.stringify(opt.body) : undefined });
+  const j = await r.json(); if (!r.ok) throw new Error(j.erro || r.status); return j;
+};
+const toast = (m) => { const t = $('#toast'); t.textContent = m; t.style.display = 'block'; clearTimeout(t._h); t._h = setTimeout(() => (t.style.display = 'none'), 2600); };
+
+document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('nav button, section').forEach((x) => x.classList.remove('on'));
+  b.classList.add('on'); $('#' + b.dataset.t).classList.add('on');
+  ({ fila: renderFila, historico: renderHist, canais: statusWhats }[b.dataset.t] || (() => {}))();
+});
+
+async function carregar() {
+  E = await api('/api/estado');
+  const c = E.config, s = E.stats;
+  $('#dot').classList.toggle('on', c.ativo); $('#swtxt').textContent = c.ativo ? 'Trabalhando 24h' : 'Pausado';
+  const av = [];
+  if (E.simulacao.shopee) av.push('Shopee em <b>modo simulação</b>: configure SHOPEE_APP_ID e SHOPEE_SECRET. Até lá, por segurança, <b>nada é enviado aos grupos reais</b>.');
+  if (!E.simulacao.canais.whatsapp) av.push('WhatsApp não conectado: envios para WhatsApp ficam como <b>simulado</b>.');
+  if (!E.simulacao.canais.telegram) av.push('Telegram não conectado: envios para Telegram ficam como <b>simulado</b>.');
+  if (E.simulacao.ia) av.push('Sem chave de IA: legendas usam modelos prontos que se alternam.');
+  $('#avisos').innerHTML = av.length ? `<div class="alert">${av.join('<br>')}</div>` : '';
+  $('#stats').innerHTML = [
+    ['Na fila', s.naFila], ['Enviados hoje', `${s.enviadosHoje}/${c.ritmo.tetoDia}`], ['Erros hoje', s.errosHoje],
+    ['Total enviado', s.totalEnviados], ['Canais ativos', c.canais.filter((x) => x.ativo).length], ['Nichos ativos', c.nichos.filter((x) => x.ativo).length],
+  ].map(([k, v]) => `<div class="card stat"><b>${v}</b><span>${k}</span></div>`).join('');
+  const dn = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+  $('#resumo').textContent = `Ritmo: ${c.ritmo.produtosPorDisparo} produto(s) a cada ${c.ritmo.intervaloMin} min, das ${c.ritmo.inicio} às ${c.ritmo.fim}, em ${c.ritmo.dias.map((d) => dn[d]).join(', ')}. Agora: ${E.agora.hhmm}.`;
+  // ritmo
+  const r = c.ritmo; $('#r_prod').value = r.produtosPorDisparo; $('#r_grp').value = r.gruposPorDisparo; $('#r_teto').value = r.tetoDia; $('#r_int').value = r.intervaloMin; $('#r_ini').value = r.inicio; $('#r_fim').value = r.fim;
+  $('#r_dias').innerHTML = dn.map((d, i) => `<button data-d="${i}" class="${r.dias.includes(i) ? 'on' : ''}" onclick="this.classList.toggle('on')">${d}</button>`).join('');
+  // canais
+  $('#listaCanais').innerHTML = c.canais.length ? c.canais.map((x) => `<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0">
+    <div><b>${esc(x.nome)}</b> <span class="tag">${x.tipo}</span><div class="mut">${esc(x.destino)}</div></div>
+    <div class="row"><button class="btn sm sec" onclick="toggleCanal('${x.id}')">${x.ativo ? 'Pausar' : 'Ativar'}</button><button class="btn sm sec" onclick="rmCanal('${x.id}')">Remover</button></div></div>`).join('') : '<p class="mut">Nenhum canal ainda.</p>';
+  // nichos
+  $('#listaNichos').innerHTML = c.nichos.map((n) => `<div style="border-bottom:1px solid var(--line);padding:8px 0">
+    <div class="row" style="justify-content:space-between"><b>${esc(n.nome)}</b><div class="row">
+    <button class="btn sm sec" onclick="toggleNicho('${n.id}')">${n.ativo ? 'Pausar' : 'Ativar'}</button><button class="btn sm sec" onclick="rmNicho('${n.id}')">Remover</button></div></div>
+    <div>${n.palavras.map((p) => `<span class="tag">${esc(p)}</span>`).join('')}</div></div>`).join('');
+  const f = c.filtros; $('#f_desc').value = f.descontoMin; $('#f_nota').value = f.notaMin; $('#f_vend').value = f.vendasMin; $('#f_com').value = f.comissaoMin; $('#f_preco').value = f.precoMax;
+  $('#a_min').value = c.autopilot.filaMinima; $('#a_rep').value = c.autopilot.naoRepetirDias;
+}
+
+const salvar = async (body, msg = 'Salvo') => { await api('/api/config', { method: 'POST', body }); toast(msg); carregar(); };
+$('#sw').onclick = () => salvar({ ativo: !E.config.ativo }, E.config.ativo ? 'Robô pausado' : 'Robô ligado');
+
+function salvarRitmo() {
+  const dias = [...document.querySelectorAll('#r_dias button.on')].map((b) => +b.dataset.d);
+  salvar({ ritmo: { produtosPorDisparo: +$('#r_prod').value, gruposPorDisparo: +$('#r_grp').value, tetoDia: +$('#r_teto').value, intervaloMin: +$('#r_int').value, dias, inicio: $('#r_ini').value, fim: $('#r_fim').value } }, 'Ritmo salvo');
+}
+function salvarFiltros() {
+  salvar({ filtros: { descontoMin: +$('#f_desc').value, notaMin: +$('#f_nota').value, vendasMin: +$('#f_vend').value, comissaoMin: +$('#f_com').value, precoMax: +$('#f_preco').value },
+    autopilot: { filaMinima: +$('#a_min').value, naoRepetirDias: +$('#a_rep').value } }, 'Filtros salvos');
+}
+function addCanal() {
+  const nome = $('#c_nome').value.trim(), destino = $('#c_dest').value.trim(); if (!nome || !destino) return toast('Preencha nome e destino');
+  salvar({ canais: [...E.config.canais, { tipo: $('#c_tipo').value, nome, destino, ativo: true }] }, 'Canal adicionado'); $('#c_nome').value = $('#c_dest').value = '';
+}
+const toggleCanal = (id) => salvar({ canais: E.config.canais.map((c) => c.id === id ? { ...c, ativo: !c.ativo } : c) });
+const rmCanal = (id) => confirm('Remover canal?') && salvar({ canais: E.config.canais.filter((c) => c.id !== id) });
+function addNicho() {
+  const nome = $('#n_nome').value.trim(), palavras = $('#n_pal').value.split(',').map((s) => s.trim()).filter(Boolean);
+  if (!nome || !palavras.length) return toast('Preencha nome e palavras');
+  const id = nome.toLowerCase().normalize('NFD').replace(/[^a-z0-9]/g, '').slice(0, 20) || Date.now().toString(36);
+  salvar({ nichos: [...E.config.nichos, { id, nome, palavras, ativo: true }] }, 'Nicho adicionado'); $('#n_nome').value = $('#n_pal').value = '';
+}
+const toggleNicho = (id) => salvar({ nichos: E.config.nichos.map((n) => n.id === id ? { ...n, ativo: !n.ativo } : n) });
+const rmNicho = (id) => confirm('Remover nicho?') && salvar({ nichos: E.config.nichos.filter((n) => n.id !== id) });
+
+async function buscar() {
+  $('#ofertas').innerHTML = '<p class="mut">Buscando...</p>';
+  try { ofertas = await api(`/api/ofertas?q=${encodeURIComponent($('#q').value)}&ordenar=${$('#ord').value}`); }
+  catch (e) { $('#ofertas').innerHTML = `<p class="mut">Erro: ${esc(e.message)}</p>`; return; }
+  $('#ofertas').innerHTML = ofertas.map((p, i) => `<div class="card prod"><img src="${esc(p.imagem)}" loading="lazy" /><h4>${esc(p.nome)}</h4>
+    <div class="price">${brl(p.preco)}${p.precoOriginal ? `<s>${brl(p.precoOriginal)}</s>` : ''}</div>
+    <div><span class="tag g">${p.comissaoPct}% comissão</span><span class="tag">${p.vendas.toLocaleString('pt-BR')} vendas</span><span class="tag">⭐ ${p.nota}</span>${p.desconto ? `<span class="tag o">-${p.desconto}%</span>` : ''}<span class="tag">índice ${p.indice}</span></div>
+    <button class="btn sm" style="margin-top:8px;width:100%" onclick="enfileirar(${i})">Adicionar à fila</button></div>`).join('') || '<p class="mut">Nada encontrado.</p>';
+}
+$('#q').addEventListener('keydown', (e) => e.key === 'Enter' && buscar());
+async function enfileirar(i) { toast('Gerando link e legenda...'); await api('/api/fila', { method: 'POST', body: { produto: ofertas[i] } }); toast('Adicionado à fila'); carregar(); }
+
+async function renderFila() {
+  const l = await api('/api/fila');
+  $('#listaFila').innerHTML = l.map((it) => `<div class="card prod"><img src="${esc(it.imagem)}" loading="lazy" /><h4>${esc(it.nome)}</h4>
+    <span class="tag">${esc(it.nicho)}</span><span class="tag g">${it.comissaoPct}%</span>
+    <pre class="copy" contenteditable="true" onblur="editCopy('${it.id}', this.innerText)">${esc(it.copy)}</pre>
+    <button class="btn sm sec" style="margin-top:8px" onclick="rmFila('${it.id}')">Remover</button></div>`).join('') || '<p class="mut">Fila vazia. Use "Abastecer fila agora" no Painel.</p>';
+}
+const editCopy = (id, copy) => api('/api/fila/' + id, { method: 'PATCH', body: { copy } }).then(() => toast('Legenda atualizada'));
+const rmFila = (id) => api('/api/fila/' + id, { method: 'DELETE' }).then(() => { renderFila(); carregar(); });
+
+async function renderHist() {
+  const h = await api('/api/historico');
+  $('#tbHist').innerHTML = h.map((x) => `<tr><td>${x.data.split('-').reverse().join('/')} ${x.hora}</td><td>${esc(x.nome)}</td><td>${esc(x.canal)}</td><td><span class="pill ${x.status}">${x.status}</span>${x.erro ? `<div class="mut">${esc(x.erro)}</div>` : ''}</td></tr>`).join('') || '<tr><td colspan="4" class="mut">Sem envios ainda.</td></tr>';
+}
+async function acao(url, msg) { toast(msg); try { const r = await api(url, { method: 'POST' }); toast(r.motivo ? r.motivo : `Feito: ${r.adicionados ?? r.enviados ?? 0}`); } catch (e) { toast('Erro: ' + e.message); } carregar(); }
+
+const ESTADOS = { open: '🟢 Conectado e pronto para enviar', connecting: '🟡 Aguardando você digitar o código no celular', close: '🔴 Desconectado', sem_instancia: '🔴 Ainda não conectado', nao_configurado: '⚪ Evolution API não configurada nas variáveis do servidor', erro: '🔴 Erro ao falar com a Evolution API' };
+async function statusWhats() {
+  let s; try { s = await api('/api/whatsapp/status'); } catch (e) { s = { estado: 'erro', erro: e.message }; }
+  $('#wStatus').innerHTML = (ESTADOS[s.estado] || s.estado) + (s.erro && s.estado === 'erro' ? `<div class="mut">${esc(s.erro)}</div>` : '');
+  $('#wConectar').style.display = s.configurado && s.estado !== 'open' ? 'block' : 'none';
+  $('#wGruposBox').style.display = s.estado === 'open' ? 'block' : 'none';
+  return s;
+}
+let wTimer;
+async function conectarWhats() {
+  $('#wCodigo').innerHTML = '<p class="mut">Gerando...</p>';
+  try {
+    const r = await api('/api/whatsapp/conectar', { method: 'POST', body: { numero: $('#wNum').value } });
+    $('#wCodigo').innerHTML = (r.codigoPareamento ? `<div class="card" style="text-align:center"><div class="mut">Seu código</div><div style="font-size:30px;font-weight:800;letter-spacing:4px">${esc(r.codigoPareamento)}</div>
+      <p class="mut" style="margin-top:8px">No celular do robô: WhatsApp → Aparelhos conectados → Conectar um aparelho → Conectar com número de telefone → digite o código.</p></div>` : '')
+      + (r.qr ? `<details style="margin-top:10px"><summary class="mut">Prefiro ler QR Code (em outra tela)</summary><img src="${r.qr}" style="width:240px;background:#fff;border-radius:10px;margin-top:8px" /></details>` : '');
+    clearInterval(wTimer); wTimer = setInterval(async () => { const s = await statusWhats(); if (s.estado === 'open') { clearInterval(wTimer); $('#wCodigo').innerHTML = ''; toast('WhatsApp conectado!'); } }, 4000);
+  } catch (e) { $('#wCodigo').innerHTML = `<p class="mut">Erro: ${esc(e.message)}</p>`; }
+}
+async function carregarGrupos() {
+  $('#wGrupos').innerHTML = '<p class="mut">Buscando...</p>';
+  try {
+    const gs = await api('/api/whatsapp/grupos'); const ja = new Set(E.config.canais.map((c) => c.destino));
+    $('#wGrupos').innerHTML = gs.map((g, i) => `<div class="row" style="justify-content:space-between;border-bottom:1px solid var(--line);padding:8px 0">
+      <div><b>${esc(g.nome)}</b>${g.membros ? `<div class="mut">${g.membros} membros</div>` : ''}</div>
+      ${ja.has(g.id) ? '<span class="tag g">adicionado</span>' : `<button class="btn sm" onclick='addGrupo(${JSON.stringify(g).replace(/'/g, "&#39;")})'>Adicionar</button>`}</div>`).join('') || '<p class="mut">Nenhum grupo encontrado. O número do robô precisa estar nos grupos (de preferência como admin).</p>';
+  } catch (e) { $('#wGrupos').innerHTML = `<p class="mut">Erro: ${esc(e.message)}</p>`; }
+}
+async function addGrupo(g) { await salvar({ canais: [...E.config.canais, { tipo: 'whatsapp', nome: g.nome, destino: g.id, ativo: true }] }, 'Grupo adicionado'); carregarGrupos(); }
+
+carregar(); setInterval(carregar, 30000);
+</script>
+</body>
+</html>
