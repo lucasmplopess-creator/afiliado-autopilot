@@ -12,7 +12,7 @@ if (fs.existsSync('.env')) {
 const express = (await import('express')).default;
 const { load, save, uid } = await import('./store.js');
 const { buscarOfertas, modoSimulacao } = await import('./shopee.js');
-const { statusCanais, whatsStatus, whatsConectar, whatsGrupos } = await import('./senders.js');
+const { statusCanais, whatsStatus, whatsConectar, whatsGrupos, facebookPagina } = await import('./senders.js');
 const eng = await import('./engine.js');
 
 const app = express();
@@ -83,6 +83,7 @@ app.delete('/api/fila/:id', ok((req) => {
 app.get('/api/whatsapp/status', ok(() => whatsStatus()));
 app.post('/api/whatsapp/conectar', ok((req) => whatsConectar(req.body?.numero)));
 app.get('/api/whatsapp/grupos', ok(() => whatsGrupos()));
+app.get('/api/facebook/pagina', ok(() => facebookPagina()));
 app.get('/saude', (req, res) => res.json({ ok: true }));
 
 app.post('/api/autopilot', ok(() => eng.rodarAutopilot({ forcar: true })));

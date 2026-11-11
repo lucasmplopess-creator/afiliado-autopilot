@@ -111,12 +111,18 @@
         <div id="wGrupos" style="margin-top:10px"></div>
       </div>
     </div>
+    <div class="card" style="max-width:620px;margin-bottom:14px">
+      <h2>Página do Facebook</h2>
+      <p class="mut">Posta foto + legenda + link na sua Página pela API oficial do Facebook.</p>
+      <button class="btn sec" style="margin-top:10px" onclick="buscarPagina()">Buscar minha Página</button>
+      <div id="fbPagina" style="margin-top:10px"></div>
+    </div>
     <div class="card" style="max-width:620px">
       <h2>Canais de envio</h2>
       <div id="listaCanais"></div>
-      <label>Tipo</label><select id="c_tipo"><option value="whatsapp">Grupo de WhatsApp</option><option value="telegram">Canal/Grupo do Telegram</option></select>
+      <label>Tipo</label><select id="c_tipo"><option value="whatsapp">Grupo de WhatsApp</option><option value="telegram">Canal/Grupo do Telegram</option><option value="facebook">Página do Facebook</option></select>
       <label>Nome</label><input id="c_nome" placeholder="Ex: Ofertas Gamer #1" />
-      <label>Destino (WhatsApp: 1203...@g.us | Telegram: @canal ou -100...)</label><input id="c_dest" />
+      <label>Destino (WhatsApp: 1203...@g.us | Telegram: @canal ou -100... | Facebook: ID da Página)</label><input id="c_dest" />
       <button class="btn" style="margin-top:12px" onclick="addCanal()">Adicionar canal</button>
     </div>
   </section>
@@ -171,6 +177,7 @@ async function carregar() {
   if (E.simulacao.shopee) av.push('Shopee em <b>modo simulação</b>: configure SHOPEE_APP_ID e SHOPEE_SECRET. Até lá, por segurança, <b>nada é enviado aos grupos reais</b>.');
   if (!E.simulacao.canais.whatsapp) av.push('WhatsApp não conectado: envios para WhatsApp ficam como <b>simulado</b>.');
   if (!E.simulacao.canais.telegram) av.push('Telegram não conectado: envios para Telegram ficam como <b>simulado</b>.');
+  if (!E.simulacao.canais.facebook) av.push('Facebook não conectado: posts na Página ficam como <b>simulado</b>.');
   if (E.simulacao.ia) av.push('Sem chave de IA: legendas usam modelos prontos que se alternam.');
   $('#avisos').innerHTML = av.length ? `<div class="alert">${av.join('<br>')}</div>` : '';
   $('#stats').innerHTML = [
@@ -277,6 +284,15 @@ async function carregarGrupos() {
       ${ja.has(g.id) ? '<span class="tag g">adicionado</span>' : `<button class="btn sm" onclick='addGrupo(${JSON.stringify(g).replace(/'/g, "&#39;")})'>Adicionar</button>`}</div>`).join('') || '<p class="mut">Nenhum grupo encontrado. O número do robô precisa estar nos grupos (de preferência como admin).</p>';
   } catch (e) { $('#wGrupos').innerHTML = `<p class="mut">Erro: ${esc(e.message)}</p>`; }
 }
+async function buscarPagina() {
+  $('#fbPagina').innerHTML = '<p class="mut">Buscando...</p>';
+  try {
+    const p = await api('/api/facebook/pagina'); const ja = E.config.canais.some((c) => c.tipo === 'facebook' && c.destino === p.id);
+    $('#fbPagina').innerHTML = `<div class="row" style="justify-content:space-between"><div><b>${esc(p.nome)}</b>${p.seguidores != null ? `<div class="mut">${p.seguidores} seguidores</div>` : ''}</div>
+      ${ja ? '<span class="tag g">adicionada</span>' : `<button class="btn sm" onclick='addPagina(${JSON.stringify(p).replace(/'/g, "&#39;")})'>Adicionar</button>`}</div>`;
+  } catch (e) { $('#fbPagina').innerHTML = `<p class="mut">${esc(e.message)}</p>`; }
+}
+async function addPagina(p) { await salvar({ canais: [...E.config.canais, { tipo: 'facebook', nome: p.nome, destino: p.id, ativo: true }] }, 'Página adicionada'); buscarPagina(); }
 async function addGrupo(g) { await salvar({ canais: [...E.config.canais, { tipo: 'whatsapp', nome: g.nome, destino: g.id, ativo: true }] }, 'Grupo adicionado'); carregarGrupos(); }
 
 carregar(); setInterval(carregar, 30000);

@@ -3,9 +3,11 @@ const EVO_URL = process.env.EVOLUTION_URL?.replace(/\/$/, '');
 const EVO_KEY = process.env.EVOLUTION_APIKEY;
 const EVO_INST = process.env.EVOLUTION_INSTANCE;
 const TG = process.env.TELEGRAM_BOT_TOKEN;
+const FB_TOKEN = process.env.FACEBOOK_PAGE_TOKEN;
+const FB_VER = process.env.FACEBOOK_API_VERSION || 'v23.0';
 
 export function statusCanais() {
-  return { whatsapp: !!(EVO_URL && EVO_KEY && EVO_INST), telegram: !!TG };
+  return { whatsapp: !!(EVO_URL && EVO_KEY && EVO_INST), telegram: !!TG, facebook: !!FB_TOKEN };
 }
 
 // ---------- gestão do WhatsApp (Evolution API v2) ----------
@@ -56,6 +58,7 @@ export async function enviar(canal, item) {
   if (modoSimulacao()) return { simulado: true };
   if (canal.tipo === 'whatsapp') return enviarWhatsApp(canal.destino, item);
   if (canal.tipo === 'telegram') return enviarTelegram(canal.destino, item);
+  if (canal.tipo === 'facebook') return enviarFacebook(canal.destino, item);
   throw new Error('Tipo de canal desconhecido: ' + canal.tipo);
 }
 
@@ -89,4 +92,38 @@ async function enviarTelegram(destino, item) {
   });
   if (!r.ok) throw new Error(`Telegram ${r.status}: ${await r.text()}`);
   return { simulado: false };
+}
+
+// ---------- Facebook (Graph API oficial, Página) ----------
+async function fb(caminho, params = {}, metodo = 'GET') {
+  const u = new URL(`${process.env.FACEBOOK_GRAPH_URL || 'https://graph.facebook.com'}/${FB_VER}/${caminho}`);
+  const body = new URLSearchParams({ ...params, access_token: FB_TOKEN });
+  const r = metodo === 'GET'
+    ? await fetch(`${u}?${body}`)
+    : await fetch(u, { method: 'POST', body });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok || j.error) throw new Error(`Facebook: ${j.error?.message || r.status}`);
+  return j;
+}
+
+// Facebook não entende *negrito* e ~riscado~ do WhatsApp: limpa a formatação
+const textoFacebook = (t) => t.replace(/~([^~]+)~/g, '$1').replace(/\*([^*]+)\*/g, '$1');
+
+async function enviarFacebook(paginaId, item) {
+  if (!FB_TOKEN) return { simulado: true };
+  const id = paginaId || 'me';
+  const message = textoFacebook(item.copy);
+  try {
+    await fb(`${id}/photos`, { url: item.imagem, message }, 'POST');
+  } catch (e) {
+    // sem foto (imagem inválida): publica texto com link
+    await fb(`${id}/feed`, { message, link: item.link }, 'POST');
+  }
+  return { simulado: false };
+}
+
+export async function facebookPagina() {
+  if (!FB_TOKEN) throw new Error('Token da Página não configurado (FACEBOOK_PAGE_TOKEN)');
+  const j = await fb('me', { fields: 'id,name,followers_count' });
+  return { id: j.id, nome: j.name, seguidores: j.followers_count ?? null };
 }

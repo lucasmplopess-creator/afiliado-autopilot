@@ -47,6 +47,7 @@ Réplica funcional do sistema mostrado no vídeo de referência.
 | Shopee Afiliados | affiliate.shopee.com.br → Open API | `SHOPEE_APP_ID`, `SHOPEE_SECRET` |
 | WhatsApp | Evolution API (gratuita, self hosted). Conecte o número lendo o QR Code | `EVOLUTION_URL`, `EVOLUTION_APIKEY`, `EVOLUTION_INSTANCE` |
 | Telegram | @BotFather → /newbot. Adicione o bot como admin do canal | `TELEGRAM_BOT_TOKEN` |
+| Página do Facebook | developers.facebook.com (ver 3.4) | `FACEBOOK_PAGE_TOKEN` |
 | IA das legendas (opcional) | console.anthropic.com | `ANTHROPIC_API_KEY` |
 
 ### 3.2 Hospedagem no Railway (dá para fazer pelo celular)
@@ -64,7 +65,14 @@ Réplica funcional do sistema mostrado no vídeo de referência.
 5. No celular do robô: WhatsApp → Aparelhos conectados → Conectar com número de telefone → digite o código.
 6. Toque em **Buscar meus grupos** e adicione os grupos com 1 toque.
 
-### 3.4 Ligar o robô
+### 3.4 Página do Facebook (API oficial, grátis)
+1. Em developers.facebook.com: **Meus apps → Criar app →** caso de uso "Gerenciar tudo na sua Página".
+2. No **Graph API Explorer**: selecione o app, peça as permissões `pages_manage_posts`, `pages_read_engagement` e `pages_show_list`, e gere o token escolhendo a sua Página em "User or Page".
+3. Transforme em token de longa duração (Ferramenta de depuração do token de acesso → Estender) e gere de novo o token da Página.
+4. No Railway, em Variables do robô: `FACEBOOK_PAGE_TOKEN=` com o token da Página.
+5. No painel: **Canais → Buscar minha Página → Adicionar**.
+
+### 3.5 Ligar o robô
 1. **Nichos e filtros**: ajuste palavras e filtros.
 2. **Painel** → "Abastecer fila agora" e confira as legendas na **Fila** (dá para editar tocando no texto).
 3. Toque em **Pausado** no topo para virar **Trabalhando 24h**.
