@@ -16,7 +16,13 @@ const { statusCanais, whatsStatus, whatsConectar, whatsGrupos, facebookPagina } 
 const eng = await import('./engine.js');
 
 const app = express();
+app.set('trust proxy', true);
 app.use(express.json({ limit: '1mb' }));
+
+// imagens enviadas no modo manual: públicas, para WhatsApp/Telegram/Facebook conseguirem baixar
+const IMG_DIR = path.join(process.env.DATA_DIR || path.resolve('data'), 'img');
+fs.mkdirSync(IMG_DIR, { recursive: true });
+app.use('/img', express.static(IMG_DIR, { maxAge: '30d' }));
 
 // proteção simples por senha
 const SENHA = process.env.PAINEL_SENHA;
@@ -69,6 +75,39 @@ app.get('/api/ofertas', ok((req) => buscarOfertas({ keyword: req.query.q || '', 
   .then((l) => (req.query.ordenar === 'indice' ? l.sort((a, b) => b.indice - a.indice) : l))));
 
 app.post('/api/fila', ok((req) => eng.adicionarNaFila(req.body.produto, req.body.nicho || 'manual')));
+
+const TIPOS = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+app.post('/api/imagem', express.raw({ type: Object.keys(TIPOS), limit: '8mb' }), ok((req) => {
+  const ext = TIPOS[req.headers['content-type']];
+  if (!ext || !req.body?.length) throw new Error('Envie uma imagem JPG, PNG ou WEBP');
+  const nome = `${uid()}.${ext}`;
+  fs.writeFileSync(path.join(IMG_DIR, nome), req.body);
+  return { url: `${req.protocol}://${req.get('host')}/img/${nome}` };
+}));
+
+app.post('/api/manual', ok(async (req) => {
+  const b = req.body || {};
+  const link = String(b.link || '').trim();
+  if (!/^https?:\/\/\S+$/.test(link)) throw new Error('Cole o link de afiliado completo (começando com https://)');
+  if (!b.nome?.trim()) throw new Error('Informe o nome do produto');
+  const preco = Number(String(b.preco).replace(',', '.'));
+  if (!(preco > 0)) throw new Error('Informe o preço');
+  if (!b.imagem) throw new Error('Envie a foto do produto');
+  const original = Number(String(b.precoOriginal || '').replace(',', '.')) || null;
+  const produto = {
+    manual: true, itemId: 'MAN' + uid(), nome: b.nome.trim(), imagem: b.imagem, link, preco,
+    precoOriginal: original && original > preco ? original : null,
+    desconto: original && original > preco ? Math.round((1 - preco / original) * 100) : 0,
+    comissaoPct: Number(b.comissao) || 0, indice: null,
+  };
+  return eng.adicionarNaFila(produto, b.nicho || 'manual');
+}));
+
+app.post('/api/fila/limpar-testes', ok(() => {
+  const db = load(); const antes = db.fila.length;
+  db.fila = db.fila.filter((i) => !(i.status === 'na_fila' && i.simulado)); save();
+  return { removidos: antes - db.fila.length };
+}));
 app.get('/api/fila', ok(() => load().fila.filter((i) => i.status === 'na_fila')));
 app.patch('/api/fila/:id', ok((req) => {
   const db = load(); const it = db.fila.find((i) => i.id === req.params.id);

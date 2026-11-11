@@ -55,7 +55,7 @@ import { modoSimulacao } from './shopee.js';
 
 export async function enviar(canal, item) {
   // trava de segurança: sem Shopee real, nada sai para grupos reais
-  if (modoSimulacao()) return { simulado: true };
+  if (item.simulado || (!item.manual && modoSimulacao())) return { simulado: true };
   if (canal.tipo === 'whatsapp') return enviarWhatsApp(canal.destino, item);
   if (canal.tipo === 'telegram') return enviarTelegram(canal.destino, item);
   if (canal.tipo === 'facebook') return enviarFacebook(canal.destino, item);

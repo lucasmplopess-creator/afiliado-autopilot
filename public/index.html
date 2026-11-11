@@ -68,6 +68,21 @@
   </section>
 
   <section id="produtos">
+    <div class="card" style="max-width:620px;margin-bottom:16px">
+      <h2>➕ Adicionar produto pelo seu link</h2>
+      <p class="mut">Gere o link no painel de afiliados da Shopee (Link personalizado) e cole aqui. O robô monta o post e dispara de verdade.</p>
+      <label>Link de afiliado *</label><input id="m_link" placeholder="https://s.shopee.com.br/..." />
+      <label>Nome do produto *</label><input id="m_nome" placeholder="Ex: Mouse Gamer RGB 7200 DPI" />
+      <div class="row">
+        <div style="flex:1;min-width:120px"><label>Preço atual (R$) *</label><input id="m_preco" inputmode="decimal" placeholder="59,90" /></div>
+        <div style="flex:1;min-width:120px"><label>Preço antes (R$)</label><input id="m_orig" inputmode="decimal" placeholder="99,90" /></div>
+      </div>
+      <label>Foto do produto *</label><input type="file" id="m_foto" accept="image/jpeg,image/png,image/webp" />
+      <img id="m_prev" style="display:none;width:120px;border-radius:10px;margin-top:8px" />
+      <label>Nicho</label><select id="m_nicho"></select>
+      <button class="btn" style="margin-top:12px;width:100%" id="m_btn" onclick="addManual()">Gerar post e colocar na fila</button>
+    </div>
+    <h2>Buscar ofertas (API da Shopee)</h2>
     <div class="row">
       <input id="q" placeholder="Buscar ofertas da Shopee (ex: mouse gamer)" style="flex:1;min-width:200px" />
       <select id="ord" style="width:auto">
@@ -79,7 +94,7 @@
     <div class="grid" id="ofertas" style="margin-top:14px"></div>
   </section>
 
-  <section id="fila"><h2>Próximos disparos</h2><div class="grid" id="listaFila"></div></section>
+  <section id="fila"><div class="row" style="justify-content:space-between;margin-bottom:12px"><h2 style="margin:0">Próximos disparos</h2><button class="btn sm sec" onclick="limparTestes()">Limpar itens de teste</button></div><div class="grid" id="listaFila"></div></section>
 
   <section id="ritmo">
     <div class="card" style="max-width:520px">
@@ -174,7 +189,7 @@ async function carregar() {
   const c = E.config, s = E.stats;
   $('#dot').classList.toggle('on', c.ativo); $('#swtxt').textContent = c.ativo ? 'Trabalhando 24h' : 'Pausado';
   const av = [];
-  if (E.simulacao.shopee) av.push('Shopee em <b>modo simulação</b>: configure SHOPEE_APP_ID e SHOPEE_SECRET. Até lá, por segurança, <b>nada é enviado aos grupos reais</b>.');
+  if (E.simulacao.shopee) av.push('API da Shopee ainda não conectada: a busca automática usa produtos de teste, que <b>nunca são enviados</b>. Produtos que você adiciona <b>pelo seu link</b> (aba Produtos) são enviados de verdade.');
   if (!E.simulacao.canais.whatsapp) av.push('WhatsApp não conectado: envios para WhatsApp ficam como <b>simulado</b>.');
   if (!E.simulacao.canais.telegram) av.push('Telegram não conectado: envios para Telegram ficam como <b>simulado</b>.');
   if (!E.simulacao.canais.facebook) av.push('Facebook não conectado: posts na Página ficam como <b>simulado</b>.');
@@ -199,6 +214,7 @@ async function carregar() {
     <button class="btn sm sec" onclick="toggleNicho('${n.id}')">${n.ativo ? 'Pausar' : 'Ativar'}</button><button class="btn sm sec" onclick="rmNicho('${n.id}')">Remover</button></div></div>
     <div>${n.palavras.map((p) => `<span class="tag">${esc(p)}</span>`).join('')}</div></div>`).join('');
   const f = c.filtros; $('#f_desc').value = f.descontoMin; $('#f_nota').value = f.notaMin; $('#f_vend').value = f.vendasMin; $('#f_com').value = f.comissaoMin; $('#f_preco').value = f.precoMax;
+  const sel = $('#m_nicho').value; $('#m_nicho').innerHTML = c.nichos.map((n) => `<option value="${esc(n.id)}">${esc(n.nome)}</option>`).join('') + '<option value="manual">Geral</option>'; if (sel) $('#m_nicho').value = sel;
   $('#a_min').value = c.autopilot.filaMinima; $('#a_rep').value = c.autopilot.naoRepetirDias;
 }
 
@@ -240,10 +256,30 @@ async function buscar() {
 $('#q').addEventListener('keydown', (e) => e.key === 'Enter' && buscar());
 async function enfileirar(i) { toast('Gerando link e legenda...'); await api('/api/fila', { method: 'POST', body: { produto: ofertas[i] } }); toast('Adicionado à fila'); carregar(); }
 
+let fotoUrl = null;
+$('#m_foto').addEventListener('change', async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  fotoUrl = null; $('#m_prev').src = URL.createObjectURL(f); $('#m_prev').style.display = 'block'; toast('Enviando foto...');
+  try {
+    const r = await fetch('/api/imagem', { method: 'POST', headers: { 'Content-Type': f.type }, body: f });
+    const j = await r.json(); if (!r.ok) throw new Error(j.erro); fotoUrl = j.url; toast('Foto pronta');
+  } catch (err) { toast('Erro na foto: ' + err.message); }
+});
+async function addManual() {
+  if (!fotoUrl) return toast('Escolha a foto do produto');
+  $('#m_btn').disabled = true;
+  try {
+    await api('/api/manual', { method: 'POST', body: { link: $('#m_link').value, nome: $('#m_nome').value, preco: $('#m_preco').value, precoOriginal: $('#m_orig').value, imagem: fotoUrl, nicho: $('#m_nicho').value } });
+    toast('Post criado e colocado na fila ✅');
+    ['#m_link', '#m_nome', '#m_preco', '#m_orig', '#m_foto'].forEach((k) => ($(k).value = '')); $('#m_prev').style.display = 'none'; fotoUrl = null; carregar();
+  } catch (e) { toast(e.message); } finally { $('#m_btn').disabled = false; }
+}
+async function limparTestes() { const r = await api('/api/fila/limpar-testes', { method: 'POST' }); toast(`${r.removidos} item(ns) de teste removido(s)`); renderFila(); carregar(); }
+
 async function renderFila() {
   const l = await api('/api/fila');
   $('#listaFila').innerHTML = l.map((it) => `<div class="card prod"><img src="${esc(it.imagem)}" loading="lazy" /><h4>${esc(it.nome)}</h4>
-    <span class="tag">${esc(it.nicho)}</span><span class="tag g">${it.comissaoPct}%</span>
+    ${it.simulado ? '<span class="tag o">teste</span>' : it.manual ? '<span class="tag g">seu link</span>' : ''}<span class="tag">${esc(it.nicho)}</span>${it.comissaoPct ? `<span class="tag g">${it.comissaoPct}%</span>` : ''}
     <pre class="copy" contenteditable="true" onblur="editCopy('${it.id}', this.innerText)">${esc(it.copy)}</pre>
     <button class="btn sm sec" style="margin-top:8px" onclick="rmFila('${it.id}')">Remover</button></div>`).join('') || '<p class="mut">Fila vazia. Use "Abastecer fila agora" no Painel.</p>';
 }

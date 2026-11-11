@@ -1,6 +1,6 @@
 // Motor: piloto automático (repõe a fila) + agendador (respeita o ritmo dos disparos).
 import { load, save, uid } from './store.js';
-import { buscarOfertas, gerarLinkCurto } from './shopee.js';
+import { buscarOfertas, gerarLinkCurto, modoSimulacao } from './shopee.js';
 import { gerarCopy } from './copy.js';
 import { enviar } from './senders.js';
 
@@ -23,13 +23,15 @@ const log = (...a) => console.log(`[${new Date().toISOString()}]`, ...a);
 export async function adicionarNaFila(produto, nichoId = 'manual') {
   const db = load();
   const nicho = db.config.nichos.find((n) => n.id === nichoId);
-  const link = await gerarLinkCurto(produto.linkOferta || produto.linkProduto, [nichoId, 'autopilot']);
+  const manual = !!produto.manual;
+  const simulado = !manual && (modoSimulacao() || String(produto.itemId || '').startsWith('SIM'));
+  const link = manual ? produto.link : await gerarLinkCurto(produto.linkOferta || produto.linkProduto, [nichoId, 'autopilot']);
   const copy = await gerarCopy(produto, nicho, link);
   const item = {
     id: uid(), itemId: produto.itemId, nome: produto.nome, imagem: produto.imagem,
     preco: produto.preco, precoOriginal: produto.precoOriginal, desconto: produto.desconto,
     comissaoPct: produto.comissaoPct, indice: produto.indice, link, copy, nicho: nichoId,
-    status: 'na_fila', criadoEm: Date.now(),
+    status: 'na_fila', criadoEm: Date.now(), manual, simulado,
   };
   db.fila.push(item);
   save();
@@ -99,7 +101,8 @@ export async function disparar({ forcar = false } = {}) {
     if (Date.now() - db.meta.ultimoDisparo < r.intervaloMin * 60000) return { enviados: 0, motivo: 'aguardando intervalo' };
   }
 
-  const hoje = db.historico.filter((h) => h.data === t.data && h.status !== 'erro').length;
+  // o teto protege os canais reais: conta só envios de verdade
+  const hoje = db.historico.filter((h) => h.data === t.data && h.status === 'enviado').length;
   let restante = r.tetoDia - hoje;
   if (restante <= 0) return { enviados: 0, motivo: 'teto diário atingido' };
 
@@ -111,7 +114,8 @@ export async function disparar({ forcar = false } = {}) {
   const canais = Array.from({ length: qtd }, (_, i) => ativos[(db.meta.cursorCanal + i) % ativos.length]);
   db.meta.cursorCanal = (db.meta.cursorCanal + qtd) % ativos.length;
 
-  const itens = db.fila.filter((i) => i.status === 'na_fila').slice(0, r.produtosPorDisparo);
+  // no automático, itens de teste (simulados) nunca ocupam a vez dos reais
+  const itens = db.fila.filter((i) => i.status === 'na_fila' && (forcar || !i.simulado)).slice(0, r.produtosPorDisparo);
   if (!itens.length) return { enviados: 0, motivo: 'fila vazia' };
 
   let enviados = 0;
@@ -150,7 +154,7 @@ export function iniciarLoop() {
     try {
       const db = load();
       if (db.config.ativo) {
-        if (Date.now() - db.meta.ultimoAutopilot > 30 * 60000) await rodarAutopilot();
+        if (!modoSimulacao() && Date.now() - db.meta.ultimoAutopilot > 30 * 60000) await rodarAutopilot();
         await disparar();
       }
     } catch (e) {
